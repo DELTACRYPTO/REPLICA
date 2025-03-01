@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract SelfReplicating {
+    uint256 public replicationCount;
+    address public owner;
+
+    event ContractReplicated(address newContract, uint256 replicationCount);
+
+    constructor() {
+        owner = msg.sender;
+        replicationCount = 0;
+    }
+
+    // Fonction pour se répliquer
+    function replicate() public {
+        require(msg.sender == owner, "Only the owner can replicate the contract");
+
+        replicationCount++;
+        emit ContractReplicated(address(this), replicationCount);
+    }
+}
+
+contract SelfReplicatingDeployer {
+    bytes32 public salt;
+    address public lastDeployedContract;
+    
+    event ContractDeployed(address newContract);
+
+    constructor() {
+        salt = keccak256(abi.encodePacked(address(this), block.timestamp));
+    }
+
+    // Fonction pour déployer un contrat SelfReplicating dans le même bloc
+    function deploySelfReplicating() public {
+        bytes memory bytecode = type(SelfReplicating).creationCode;
+
+        // Déploiement du contrat en utilisant CREATE2
+        address newContract;
+        assembly {
+            newContract := create2(0, add(bytecode, 0x20), mload(bytecode), sload(salt.slot))
+        }
+
+        require(newContract != address(0), "Contract deployment failed");
+
+        lastDeployedContract = newContract;
+        emit ContractDeployed(newContract);
+    }
+
+    // Optionnel : changer le "salt" pour créer des déploiements uniques
+    function changeSalt(bytes32 newSalt) public {
+        salt = newSalt;
+    }
+}
+
